@@ -73,6 +73,9 @@ static esp_err_t root_handler(httpd_req_t *req)
     snprintf(pin_str, sizeof(pin_str), "%d", config.dout_pin);
     str_replace(buf_a, "{{DOUT_PIN}}", pin_str, buf_b, buf_len);
 
+    snprintf(pin_str, sizeof(pin_str), "%d", config.ground_pin);
+    str_replace(buf_b, "{{GROUND_PIN}}", pin_str, buf_a, buf_len);
+
     // WLED placeholders
     str_replace(buf_b, "{{WLED_ENABLED_CHECKED}}",
                 config.wled_enabled ? "checked" : "", buf_a, buf_len);
@@ -207,7 +210,7 @@ static esp_err_t save_audio_handler(httpd_req_t *req)
     if (read_request_body(req, body, sizeof(body)) != ESP_OK) return ESP_FAIL;
 
     char val[8];
-    int bck_pin, ws_pin, dout_pin;
+    int bck_pin, ws_pin, dout_pin, ground_pin;
 
     if (!get_form_field(body, "bck_pin", val, sizeof(val)))  { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing bck_pin");  return ESP_FAIL; }
     bck_pin = atoi(val);
@@ -218,7 +221,10 @@ static esp_err_t save_audio_handler(httpd_req_t *req)
     if (!get_form_field(body, "dout_pin", val, sizeof(val))) { httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing dout_pin"); return ESP_FAIL; }
     dout_pin = atoi(val);
 
-    if (config_manager_save_audio(bck_pin, ws_pin, dout_pin) != ESP_OK) {
+    if (!get_form_field(body, "ground_pin", val, sizeof(val))) {httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing ground_pin"); return ESP_FAIL; }
+    ground_pin = atoi(val);
+
+    if (config_manager_save_audio(bck_pin, ws_pin, dout_pin, ground_pin) != ESP_OK) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to save");
         return ESP_FAIL;
     }

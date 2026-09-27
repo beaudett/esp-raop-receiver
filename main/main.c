@@ -17,6 +17,7 @@
 #include "esp_netif.h"
 #include "esp_ota_ops.h"
 #include "wled_sync.h"
+#include "driver/gpio.h"
 
 static const char *TAG = "main";
 
@@ -195,6 +196,13 @@ void app_main(void)
 
     app_config_t app_config = {0};
     config_manager_load(&app_config);
+
+    // Configure user-selected GPIO as a permanent LOW output
+    if (app_config.ground_pin > 0) {
+        gpio_reset_pin(app_config.ground_pin);
+        gpio_set_direction(app_config.ground_pin, GPIO_MODE_OUTPUT);
+        gpio_set_level(app_config.ground_pin, 0);
+    }
 
     // Initialize I2S output
     i2s_output_init(app_config.bck_pin, app_config.ws_pin, app_config.dout_pin);

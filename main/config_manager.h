@@ -10,10 +10,12 @@
 #define CONFIG_DEFAULT_BCK_PIN   11
 #define CONFIG_DEFAULT_WS_PIN    9
 #define CONFIG_DEFAULT_DOUT_PIN  10
+#define CONFIG_DEFAULT_GROUND_PIN  14
 #else
 #define CONFIG_DEFAULT_BCK_PIN   26
 #define CONFIG_DEFAULT_WS_PIN    25
 #define CONFIG_DEFAULT_DOUT_PIN  22
+#define CONFIG_DEFAULT_GROUND_PIN  14
 #endif
 
 #define WLED_DEFAULT_HOST "239.0.0.1"
@@ -24,6 +26,7 @@ typedef struct {
     int  bck_pin;
     int  ws_pin;
     int  dout_pin;
+    int  ground_pin;
     // WLED sync
     bool     wled_enabled;
     char     wled_host[64];
@@ -46,7 +49,7 @@ esp_err_t config_manager_save_device(const char *device_name);
 /**
  * @brief Save I2S pin assignments to NVS.
  */
-esp_err_t config_manager_save_audio(int bck_pin, int ws_pin, int dout_pin);
+esp_err_t config_manager_save_audio(int bck_pin, int ws_pin, int dout_pin, int ground_pin);
 
 /**
  * @brief Save WLED FFT configuration to NVS.

@@ -15,6 +15,8 @@ static const char *TAG = "config_manager";
 #define I2S_BCK_PIN_KEY   "bck_pin"
 #define I2S_WS_PIN_KEY    "ws_pin"
 #define I2S_DOUT_PIN_KEY  "dout_pin"
+#define I2S_SGRD_PIN_KEY  "sgrd_in"
+#define I2S_GROUND_PIN_KEY "ground_pin"
 
 #define WLED_NAMESPACE    "wled_config"
 #define WLED_ENABLED_KEY  "enabled"
@@ -82,13 +84,18 @@ esp_err_t config_manager_load(app_config_t *config)
         nvs_get_i32(i2s_nvs, I2S_DOUT_PIN_KEY, &val);
         config->dout_pin = (int)val;
 
+        val = CONFIG_DEFAULT_GROUND_PIN;
+        nvs_get_i32(i2s_nvs, I2S_GROUND_PIN_KEY, &val);
+        config->ground_pin = (int)val;
+
         nvs_close(i2s_nvs);
     } else {
         config->bck_pin  = CONFIG_DEFAULT_BCK_PIN;
         config->ws_pin   = CONFIG_DEFAULT_WS_PIN;
         config->dout_pin = CONFIG_DEFAULT_DOUT_PIN;
-        ESP_LOGI(TAG, "Using default I2S pins: BCK=%d WS=%d DOUT=%d",
-                 config->bck_pin, config->ws_pin, config->dout_pin);
+        config->ground_pin = CONFIG_DEFAULT_GROUND_PIN;
+        ESP_LOGI(TAG, "Using default I2S pins: BCK=%d WS=%d DOUT=%d GROUND=%d",
+                 config->bck_pin, config->ws_pin, config->dout_pin,config->ground_pin);
     }
 
     // --- WLED sync ---
@@ -160,7 +167,7 @@ esp_err_t config_manager_save_device(const char *device_name)
     return err;
 }
 
-esp_err_t config_manager_save_audio(int bck_pin, int ws_pin, int dout_pin)
+esp_err_t config_manager_save_audio(int bck_pin, int ws_pin, int dout_pin, int ground_pin)
 {
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open(I2S_NAMESPACE, NVS_READWRITE, &nvs_handle);
@@ -190,11 +197,18 @@ esp_err_t config_manager_save_audio(int bck_pin, int ws_pin, int dout_pin)
         return err;
     }
 
+    err = nvs_set_i32(nvs_handle, I2S_GROUND_PIN_KEY, (int32_t)ground_pin);
+    if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to save GROUND pin: %s", esp_err_to_name(err));
+    nvs_close(nvs_handle);
+    return err;
+    }
+
     err = nvs_commit(nvs_handle);
     nvs_close(nvs_handle);
 
     if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Saved I2S pins: BCK=%d WS=%d DOUT=%d", bck_pin, ws_pin, dout_pin);
+        ESP_LOGI(TAG, "Saved I2S pins: BCK=%d WS=%d DOUT=%d GROUND=%d", bck_pin, ws_pin, dout_pin, ground_pin);
     } else {
         ESP_LOGE(TAG, "Failed to commit I2S pins: %s", esp_err_to_name(err));
     }
