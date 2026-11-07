@@ -14,6 +14,38 @@
         .banner-enter {
             animation: slideDown 0.3s ease-out forwards;
         }
+        .tab-btn {
+            padding: 0.5rem 1.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            cursor: pointer;
+            background: none;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+            border-radius: 0;
+        }
+        .tab-btn:hover { color: #374151; }
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        #log-output {
+            background: #111827;
+            color: #86efac;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            height: 24rem;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -35,7 +67,16 @@
     </div>
 
     <div class="max-w-2xl mx-auto px-4 py-10">
-        <h1 class="text-2xl font-bold text-gray-800 mb-8">ESP AirSync Configuration</h1>
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">ESP AirSync Configuration</h1>
+
+        <!-- Tab bar -->
+        <div class="flex gap-2 border-b border-gray-200 mb-6">
+            <button id="tab-btn-config" class="tab-btn active" onclick="showTab('config')">Configuration</button>
+            <button id="tab-btn-log" class="tab-btn" onclick="showTab('log')">Serial Log</button>
+        </div>
+
+        <!-- Configuration tab -->
+        <div id="tab-config">
 
         <!-- WiFi Section -->
         <div class="bg-white rounded-2xl shadow-sm p-6 mb-6">
@@ -72,7 +113,8 @@
                            pattern="[A-Za-z0-9\-]+"
                            title="Alphanumeric characters and hyphens only"
                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-                    <p class="text-xs text-gray-400 mt-1">Alphanumeric and hyphens only, 31 characters max.</p>
+
+            <p class="text-xs text-gray-400 mt-1">Alphanumeric and hyphens only, 31 characters max.</p>
                 </div>
                 <button type="submit"
                         class="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors">
@@ -169,6 +211,36 @@
         <div class="text-center">
             <a href="/update" class="text-sm text-gray-400 hover:text-gray-600">Firmware Update</a>
         </div>
+
+        </div><!-- /tab-config -->
+
+        <!-- Serial Log tab (debug) -->
+        <div id="tab-log" class="hidden">
+            <div class="bg-white rounded-2xl shadow-sm p-6 mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-700 mb-1">Serial Log</h2>
+                        <p class="text-xs text-gray-400">Live output of what the device prints to the serial console (last 8 KB, auto-refresh every second).</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-1 text-sm text-gray-600 cursor-pointer">
+                            <input type="checkbox" id="log-pause" class="w-4 h-4 accent-blue-500">
+                            Pause
+                        </label>
+                        <button onclick="refreshLog()"
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                            Refresh
+                        </button>
+                        <button onclick="clearLog()"
+                                class="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <pre id="log-output">Loading...</pre>
+            </div>
+        </div><!-- /tab-log -->
+
     </div>
 
     <script>
@@ -211,7 +283,62 @@
             document.getElementById('restart-banner').innerHTML =
                 '<div class="max-w-2xl mx-auto px-6 py-4 text-center font-medium">Restarting device...</div>';
         }
+
+        /* ---------- Tabs ---------- */
+        let logTimer = null;
+
+        function showTab(name) {
+            const isLog = (name === 'log');
+            document.getElementById('tab-config').classList.toggle('hidden', isLog);
+            document.getElementById('tab-log').classList.toggle('hidden', !isLog);
+            document.getElementById('tab-btn-config').classList.toggle('active', !isLog);
+            document.getElementById('tab-btn-log').classList.toggle('active', isLog);
+
+            if (isLog) {
+                refreshLog();
+                startLogPolling();
+            } else {
+                stopLogPolling();
+            }
+        }
+
+        /* ---------- Serial log console ---------- */
+        async function refreshLog() {
+            const el = document.getElementById('log-output');
+            try {
+                const resp = await fetch('/api/log', { cache: 'no-store' });
+                const text = await resp.text();
+                el.textContent = text.length ? text : '(no log output yet)';
+                el.scrollTop = el.scrollHeight; // auto-scroll to bottom
+            } catch (err) {
+                el.textContent = '(failed to fetch log: ' + err + ')';
+            }
+        }
+
+        function startLogPolling() {
+            stopLogPolling();
+            logTimer = setInterval(() => {
+                if (!document.getElementById('log-pause').checked) {
+                    refreshLog();
+                }
+            }, 1000);
+        }
+
+        function stopLogPolling() {
+            if (logTimer) {
+                clearInterval(logTimer);
+                logTimer = null;
+            }
+        }
+
+        async function clearLog() {
+            try {
+                await fetch('/api/log/clear', { method: 'POST' });
+            } catch (_) { /* ignore */ }
+            refreshLog();
+        }
     </script>
 
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" nonce="vlRlRlWBSQ/ZhF/QAcYSgQ==" data-cf-beacon='{"version":"2024.11.0","token":"36b4216ae2dc4d5488c249161e71fe1e","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>

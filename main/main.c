@@ -8,6 +8,7 @@
 
 #include "wifi_manager.h"
 #include "web_server.h"
+#include "log_capture.h"
 #include "i2s_output.h"
 #include "esp_raop_receiver.h"
 #include "config_manager.h"
@@ -184,6 +185,10 @@ void app_main(void)
 {
     esp_err_t ret;
 
+    // Capture all log output for the web "Serial Log" tab (UART output unchanged).
+    // Done first so even early boot logs are visible in the web interface.
+    log_capture_init();
+
     ESP_LOGI(TAG, "ESP AirPlay Receiver starting...");
 
     // Initialize NVS
@@ -241,7 +246,8 @@ void app_main(void)
                     esp_netif_ip_info_t ip_info;
                     if (esp_netif_get_ip_info(netif, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
                         ESP_LOGE(TAG, "DHCP assigned IP but event never fired! IP: " IPSTR, IP2STR(&ip_info.ip));
-                        // Manually set connected state
+
+                  // Manually set connected state
                         // We need to add a function to do this
                         break;
                     }

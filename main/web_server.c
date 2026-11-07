@@ -1,6 +1,7 @@
 #include "web_server.h"
 #include "wifi_manager.h"
 #include "config_manager.h"
+#include "log_capture.h"
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "esp_system.h"
@@ -77,20 +78,20 @@ static esp_err_t root_handler(httpd_req_t *req)
     str_replace(buf_b, "{{GROUND_PIN}}", pin_str, buf_a, buf_len);
 
     // WLED placeholders
-    str_replace(buf_b, "{{WLED_ENABLED_CHECKED}}",
-                config.wled_enabled ? "checked" : "", buf_a, buf_len);
-    str_replace(buf_a, "{{WLED_HOST}}", config.wled_host, buf_b, buf_len);
+    str_replace(buf_a, "{{WLED_ENABLED_CHECKED}}",
+                config.wled_enabled ? "checked" : "", buf_b, buf_len);
+    str_replace(buf_b, "{{WLED_HOST}}", config.wled_host, buf_a, buf_len);
 
     char port_str[8];
     snprintf(port_str, sizeof(port_str), "%u", config.wled_port);
-    str_replace(buf_b, "{{WLED_PORT}}", port_str, buf_a, buf_len);
+    str_replace(buf_a, "{{WLED_PORT}}", port_str, buf_b, buf_len);
 
-    str_replace(buf_a, "{{WLED_CHANNEL_MONO_SEL}}",
-                config.wled_channel == 0 ? "selected" : "", buf_b, buf_len);
-    str_replace(buf_b, "{{WLED_CHANNEL_LEFT_SEL}}",
-                config.wled_channel == 1 ? "selected" : "", buf_a, buf_len);
-    str_replace(buf_a, "{{WLED_CHANNEL_RIGHT_SEL}}",
-                config.wled_channel == 2 ? "selected" : "", buf_b, buf_len);
+    str_replace(buf_b, "{{WLED_CHANNEL_MONO_SEL}}",
+                config.wled_channel == 0 ? "selected" : "", buf_a, buf_len);
+    str_replace(buf_a, "{{WLED_CHANNEL_LEFT_SEL}}",
+                config.wled_channel == 1 ? "selected" : "", buf_b, buf_len);
+    str_replace(buf_b, "{{WLED_CHANNEL_RIGHT_SEL}}",
+                config.wled_channel == 2 ? "selected" : "", buf_a, buf_len);
 
     httpd_resp_set_type(req, "text/html");
 
@@ -246,6 +247,32 @@ static esp_err_t captive_portal_handler(httpd_req_t *req)
     // Redirect to our config page
     httpd_resp_set_status(req, "302 Found");
     httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/");
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+// Return the captured serial log output as plain text (for the debug tab)
+static esp_err_t log_handler(httpd_req_t *req)
+{
+    char *buf = malloc(LOG_CAPTURE_BUFFER_SIZE + 1);
+    if (!buf) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    size_t len = log_capture_read(buf, LOG_CAPTURE_BUFFER_SIZE + 1);
+
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    httpd_resp_send(req, buf, (int)len);
+
+    free(buf);
+    return ESP_OK;
+}
+
+// Clear the captured serial log
+static esp_err_t log_clear_handler(httpd_req_t *req)
+{
+    log_capture_clear();
     httpd_resp_send(req, NULL, 0);
     return ESP_OK;
 }
@@ -501,6 +528,18 @@ httpd_handle_t web_server_start(void)
         .handler = save_wled_handler, .user_ctx = NULL
     };
     httpd_register_uri_handler(server, &save_wled_uri);
+
+    httpd_uri_t log_uri = {
+        .uri = "/api/log", .method = HTTP_GET,
+        .handler = log_handler, .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &log_uri);
+
+    httpd_uri_t log_clear_uri = {
+        .uri = "/api/log/clear", .method = HTTP_POST,
+        .handler = log_clear_handler, .user_ctx = NULL
+    };
+    httpd_register_uri_handler(server, &log_clear_uri);
 
     ESP_LOGI(TAG, "Web server started successfully");
     return server;
